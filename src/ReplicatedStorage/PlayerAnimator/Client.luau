@@ -30,8 +30,8 @@ export type LocalAnimator = {
 	AdjustWeightByGUID: (self: LocalAnimator, GUID: string, weight: number, fadeTime: number?) -> (),
 	AdjustSpeed: (self: LocalAnimator, Animation: AnimationTrack, speed: number) -> (),
 	AdjustWeight: (self: LocalAnimator, AnimationTrack: AnimationTrack, weight: number, fadeTime: number?) -> (),
-	LoadAnimationById: (self: LocalAnimator, AnimationId: string, AnimationPriority: Enum.AnimationPriority?, Replicate: boolean?, _serverGUID: string?) -> AnimationTrack?,
-	LoadAnimation: (self: LocalAnimator, Animation: Animation, AnimationPriority: Enum.AnimationPriority?, Replicate: boolean?, _serverGUID: string?) -> AnimationTrack?,
+	LoadAnimationById: (self: LocalAnimator, AnimationId: string, Replicate: boolean?, AnimationPriority: Enum.AnimationPriority?, _serverGUID: string?) -> AnimationTrack?,
+	LoadAnimation: (self: LocalAnimator, Animation: Animation, Replicate: boolean?, AnimationPriority: Enum.AnimationPriority?, _serverGUID: string?) -> AnimationTrack?,
 	Destroy: (self: LocalAnimator) -> (),
 }
 
@@ -189,7 +189,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	True - This current client will send a message to all other clients to replicate with False
 	False - This current client is receiving a replicated animation
 	Nil - This current client will be the only one with this animation]]
-	function self.LoadAnimationById(self: LocalAnimator, AnimationId: string, AnimationPriority: Enum.AnimationPriority?, Replicate: true|false|nil, _serverGUID: string?)
+	function self.LoadAnimationById(self: LocalAnimator, AnimationId: string, Replicate: true|false|nil, AnimationPriority: Enum.AnimationPriority?, _serverGUID: string?)
 		local Animation = Instance.new("Animation")
 		Animation.AnimationId = AnimationId
 		game:GetService("Debris"):AddItem(Animation, 8)
@@ -217,7 +217,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	True - This current client will send a message to all other clients to replicate with False
 	False - This current client is receiving a replicated animation
 	Nil - This current client will be the only one with this animation]]
-	function self.LoadAnimation(self: LocalAnimator, Animation: Animation, AnimationPriority: Enum.AnimationPriority?, Replicate: true|false|nil, _serverGUID: string?): AnimationTrack
+	function self.LoadAnimation(self: LocalAnimator, Animation: Animation, Replicate: true|false|nil, AnimationPriority: Enum.AnimationPriority?, _serverGUID: string?): AnimationTrack
 		assert(self.Animator,"No animator to load the animation onto!")
 
 		local NewTrack = self.Animator:LoadAnimation(Animation) :: AnimationTrack
@@ -233,8 +233,6 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 			NewTrack.Destroying:Once(function()
 				net.Animator.packets.Destroy.send({ gUID = GUID })
 			end)
-		elseif Replicate == false then
-			
 		end
 		
 		return NewTrack
@@ -262,14 +260,20 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	function self.AdjustSpeedByGUID(self: LocalAnimator, GUID: string, speed: number?)
 		local AnimationTrack = self.AnimationTracks[GUID] :: AnimationTrack?
 		if AnimationTrack then
-			if self.customPlayer[AnimationTrack] then
-				if speed == nil then speed = 1 end
-				self.customPlayer[AnimationTrack].speed = speed
+			if speed == nil then speed = 1 end
+			if type(AnimationTrack) == "string" then
+				local decodedData: TrackGhost = Http:JSONDecode(AnimationTrack)
+				decodedData.Speed = speed
+				self.AnimationTracks[GUID] = Http:JSONEncode(decodedData)
 			else
-				AnimationTrack:AdjustSpeed(speed)
-			end
-			if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
-				net.Animator.packets.AdjustSpeed.send({ gUID = GUID, speed = speed })
+				if self.customPlayer[AnimationTrack] then
+					self.customPlayer[AnimationTrack].speed = speed
+				else
+					AnimationTrack:AdjustSpeed(speed)
+				end
+				if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
+					net.Animator.packets.AdjustSpeed.send({ gUID = GUID, speed = speed })
+				end
 			end
 		end
 	end
@@ -277,9 +281,16 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	function self.AdjustWeightByGUID(self: LocalAnimator, GUID: string, weight: number?, fadeTime: number?)
 		local AnimationTrack = self.AnimationTracks[GUID] :: AnimationTrack?
 		if AnimationTrack then
-			AnimationTrack:AdjustWeight(weight, fadeTime)
-			if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
-				net.Animator.packets.AdjustWeight.send({ gUID = GUID, weight = weight, fadeTime = fadeTime })
+			if weight == nil then weight = 1 end
+			if type(AnimationTrack) == "string" then
+				local decodedData: TrackGhost = Http:JSONDecode(AnimationTrack)
+				decodedData.Weight = weight
+				self.AnimationTracks[GUID] = Http:JSONEncode(decodedData)
+			else
+				AnimationTrack:AdjustWeight(weight, fadeTime)
+				if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
+					net.Animator.packets.AdjustWeight.send({ gUID = GUID, weight = weight, fadeTime = fadeTime })
+				end
 			end
 		end
 	end

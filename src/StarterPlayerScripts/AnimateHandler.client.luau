@@ -215,7 +215,7 @@ local function setupCharacterAnimations(Character)
 			for i, animType in pairs(animTable) do
 				for idx = 1, animType.count, 1 do
 					if PreloadedAnims[animType[idx].anim.AnimationId] == nil and Animator._destroyed ~= true then
-						Animator:LoadAnimation(animType[idx].anim, Enum.AnimationPriority.Core, nil, nil)
+						Animator:LoadAnimation(animType[idx].anim, nil, Enum.AnimationPriority.Core, nil)
 						PreloadedAnims[animType[idx].anim.AnimationId] = true
 					end
 				end
@@ -278,7 +278,7 @@ local function setupCharacterAnimations(Character)
 			
 			for i, animType in pairs(animTable) do
 				for idx = 1, animType.count, 1 do
-					Animator:LoadAnimation(animType[idx].anim, Enum.AnimationPriority.Core, nil, nil)
+					Animator:LoadAnimation(animType[idx].anim, nil, Enum.AnimationPriority.Core, nil)
 				end
 			end
 		end
@@ -466,7 +466,7 @@ local function setupCharacterAnimations(Character)
 				currentAnimSpeed = 1.0
 
 				-- load it to the humanoid; get AnimationTrack
-				currentAnimTrack = Animator:LoadAnimation(anim, Enum.AnimationPriority.Core, nil, nil)
+				currentAnimTrack = Animator:LoadAnimation(anim, nil, Enum.AnimationPriority.Core, nil)
 
 				-- play the animation
 				Animator:Play(currentAnimTrack,transitionTime, nil, nil, true)
@@ -525,7 +525,7 @@ local function setupCharacterAnimations(Character)
 					local runAnimName = "run"
 					local runIdx = rollAnimation(runAnimName)
 
-					runAnimTrack = Animator:LoadAnimation(animTable[runAnimName][runIdx].anim, Enum.AnimationPriority.Core, nil, nil)
+					runAnimTrack = Animator:LoadAnimation(animTable[runAnimName][runIdx].anim, nil, Enum.AnimationPriority.Core, nil)
 					Animator:Play(runAnimTrack, transitionTime, nil, nil, true)		
 
 					if (runAnimKeyframeHandler ~= nil) then
@@ -613,7 +613,7 @@ local function setupCharacterAnimations(Character)
 				end
 
 				-- load it to the humanoid; get AnimationTrack
-				toolAnimTrack = Animator:LoadAnimation(anim, priority, nil, nil)
+				toolAnimTrack = Animator:LoadAnimation(anim, nil, priority, nil)
 
 				-- play the animation
 				Animator:Play(toolAnimTrack, transitionTime, nil, nil, true)
@@ -1159,7 +1159,7 @@ local function setupCharacterAnimations(Character)
 				currentAnimSpeed = 1.0
 
 				-- load it to the humanoid; get AnimationTrack
-				currentAnimTrack = Animator:LoadAnimation(anim, Enum.AnimationPriority.Core, nil, nil)
+				currentAnimTrack = Animator:LoadAnimation(anim, nil, Enum.AnimationPriority.Core, nil)
 
 				-- play the animation
 				Animator:Play(currentAnimTrack, transitionTime, nil, nil, true)
@@ -1220,7 +1220,7 @@ local function setupCharacterAnimations(Character)
 				end
 
 				-- load it to the humanoid; get AnimationTrack
-				toolAnimTrack = Animator:LoadAnimation(anim, priority, nil, nil)
+				toolAnimTrack = Animator:LoadAnimation(anim, nil, priority, nil)
 
 				-- play the animation
 				Animator:Play(toolAnimTrack, transitionTime, nil, nil, true)

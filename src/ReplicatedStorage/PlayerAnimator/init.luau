@@ -101,7 +101,7 @@ if IsClient and not Initialized then
 		local Humanoid = GetHumanoidFromPlayer(data.player)
 		if not Humanoid then warn("No humanoid for",data.player) return end
 		local Animator = AnimatorModule.newClient(Humanoid)
-		Animator:LoadAnimationById(data.animationId, data.animationPriority and AnimationPriorities[data.animationPriority] or nil, false, data.gUID)
+		Animator:LoadAnimationById(data.animationId, false, data.animationPriority and AnimationPriorities[data.animationPriority] or nil, data.gUID)
 	end)
 
 	net.Animator.packets.Play.listen(function(data)
