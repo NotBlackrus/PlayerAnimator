@@ -1,4 +1,4 @@
-> [!IMPORTANT] Contributors WANTED
+> [!IMPORTANT]
 > This repository is open to contributions, improvements with new and/or existing code are welcomed and encouraged!
 
 <div align="center">
@@ -64,7 +64,7 @@ The method also has a Priority argument, this is your *only chance* to apply ani
 
 - **:Play(AnimationTrack, fadeTime, weight, speed, customPlayer)**
 In regards of methods, the client animator is designed to be as closely related to the AnimationTrack's methods as possible, this makes it easy for you to bring this resource into existing games. **customPlayer** is a boolean argument that determines how the animation will be played.
-> [!IMPORTANT] customPlayer
+> [!IMPORTANT]
 > The module's custom player utilizes a PreRender connection on the client to move the animation's TimePosition by deltaTime multiplied by it's Speed. This doesn't sound special at first, but note that Roblox's player seemingly fails to play animations relative to time like this when CPU processing slows, causing framerate to drop. **THIS IS HOW MOST EMOTES DESYNC WITH THEIR AUDIOS!!!**
 > It is also important to note that since the custom player keeps the animation from playing on Roblox's built-in player, that frame markers are likely to be skipped and not invoked.
 
@@ -74,6 +74,6 @@ While it only affects animation tracks that are replicated from the server, it i
 - **AnimateHandler**
 AnimateHandler is a custom local script inside of StarterPlayerScripts that takes over the processing of character animations, designed to replace StarterCharacterScripts' "Animate" script for every player's character, to minimize networking (and to conveniently confuse exploiters).
 
-> [!WARNING] UGC Emotes
+> [!WARNING]
 > Roblox's built-in emote wheel ui uses CoreSecurity methods that normal scripts cannot access in order to load emotes, this module utilizes a loophole using InsertService by the server, and caches the emotes in a folder for the clients to use. This isn't relatively safe and can be prone to exploits, you can disable ugc emotes via the module's UGC_EMOTES attribute.
 
