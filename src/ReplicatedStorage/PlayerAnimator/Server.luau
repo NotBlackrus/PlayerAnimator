@@ -37,7 +37,7 @@ export type ServerAnimator = {
 	_player : Player,
 	Enabled: boolean,
 	
-	LoadAnimation : (self: ServerAnimator, Animation: Animation|string, AnimationPriority: Enum.AnimationPriority?, recycleAnim: boolean, _clientGUID: string?) -> FakeTrack?,
+	LoadAnimation : (self: ServerAnimator, Animation: Animation|string, forceNew: boolean, AnimationPriority: Enum.AnimationPriority?, _clientGUID: string?) -> FakeTrack?,
 	Destroy : (self: ServerAnimator) -> (),
 }
 
@@ -118,9 +118,9 @@ function module.new(Humanoid: Humanoid): ServerAnimator
 
 	--[[
 	Server load an animation onto the Character's Animator.
-	recycleAnim for reuse of an already loaded animation track, default is false
+	forceNew for creating a new animation track even if an identical one is already loaded, default is false
 	]]
-	function self.LoadAnimation(self: ServerAnimator, Animation: Animation|string, AnimationPriority: Enum.AnimationPriority?, recycleAnim: boolean?, _clientGUID: string?): FakeTrack?
+	function self.LoadAnimation(self: ServerAnimator, Animation: Animation|string, forceNew: boolean?, AnimationPriority: Enum.AnimationPriority?, _clientGUID: string?): FakeTrack?
 		local targetID: string
 		if type(Animation) == "string" then
 			targetID = Animation
@@ -128,7 +128,7 @@ function module.new(Humanoid: Humanoid): ServerAnimator
 			targetID = Animation.AnimationId
 		end
 		if _clientGUID and self.AnimationTracks[_clientGUID] then return self.AnimationTracks[_clientGUID] end
-		if recycleAnim ~= false then
+		if forceNew ~= true then
 			for guid: string, track: FakeTrack in self.AnimationTracks do
 				if track.AnimationId == targetID then
 					return track

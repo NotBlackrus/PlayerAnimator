@@ -4,7 +4,7 @@ local function clicker(whoClicked: Player, Play: boolean)
 	if whoClicked and whoClicked.Character and whoClicked.Character:FindFirstChildOfClass("Humanoid") then
 		local Humanoid = whoClicked.Character:FindFirstChildOfClass("Humanoid")
 		local Animator = PlayerAnimator.newServer(Humanoid)
-		local Track = Animator:LoadAnimation(script.Parent.dance, Enum.AnimationPriority.Action4, true)
+		local Track = Animator:LoadAnimation(script.Parent.dance, false, Enum.AnimationPriority.Action4)
 		if Play then
 			Track:Play(nil, nil, nil, true)
 		else

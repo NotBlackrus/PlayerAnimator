@@ -194,7 +194,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		Animation.AnimationId = AnimationId
 		game:GetService("Debris"):AddItem(Animation, 8)
 
-		return self:LoadAnimation(Animation, AnimationPriority, Replicate, _serverGUID)
+		return self:LoadAnimation(Animation, Replicate, AnimationPriority, _serverGUID)
 	end
 
 	--[[Locally unloads an animation

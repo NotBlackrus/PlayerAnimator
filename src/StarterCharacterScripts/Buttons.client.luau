@@ -3,7 +3,7 @@ local Humanoid = script.Parent:WaitForChild("Humanoid",3)
 local Animator = PlayerAnimator.newClient(Humanoid)
 local TestSite = workspace:WaitForChild("AnimatorTest",3)
 
-local ReplicatedTrack = Animator:LoadAnimation(workspace.AnimatorTest.dance, nil, true)
+local ReplicatedTrack = Animator:LoadAnimation(workspace.AnimatorTest.dance, true, nil)
 local Track = Animator:LoadAnimation(workspace.AnimatorTest.dance, nil, nil)
 
 local function clicker(whoClicked: Player, Play: boolean, Replicate: boolean?)
