@@ -1,0 +1,12 @@
+{
+    "className": "BillboardGui",
+    "properties": {
+        "ExtentsOffsetWorldSpace": [0, 5, 0],
+        "Size": {
+            "UDim2": [
+                [4, 0], 
+                [1, 0]
+            ]
+        }
+    }
+}

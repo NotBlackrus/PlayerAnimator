@@ -1,0 +1,8 @@
+{
+    "attributes": {
+        "GARBAGE_TIMER": 10,
+        "GARBAGE_DEBUG": false,
+        "DEFAULT_CUSTOM_PLAYER": false,
+        "UGC_EMOTES": true
+    }
+}

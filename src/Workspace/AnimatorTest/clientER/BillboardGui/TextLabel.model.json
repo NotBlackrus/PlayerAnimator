@@ -1,0 +1,13 @@
+{
+    "className": "TextLabel",
+    "properties": {
+        "Size": {
+            "UDim2": [
+                [1, 0], 
+                [1, 0]
+            ]
+        },
+        "TextScaled": true,
+        "Text": "Clicking this part makes you do a cool dance from a client script (without telling the other clients)"
+    }
+}
