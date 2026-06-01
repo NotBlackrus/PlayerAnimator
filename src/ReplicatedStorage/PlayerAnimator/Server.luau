@@ -19,7 +19,6 @@ export type FakeTrack = {
 	_ClientReplicated : boolean,
 	AnimationId : string,
 	_ReplicateTo: {Player}?,
-	_ReplicatedOn: {Player},
 	
 	Stop : (self: FakeTrack, fadeTime: number?) -> (),
 	Play : (self: FakeTrack, fadeTime: number?, weight: number?, speed: number?, customPlayer: boolean?) -> (),
@@ -27,7 +26,7 @@ export type FakeTrack = {
 	AdjustWeight : (self: FakeTrack, weight: number, fadeTime: number?) -> (),
 	Destroy : (self: FakeTrack, _replicateToAllExcept: Player?) -> (),
 	
-	new : (AnimationId: string, TrackArguments: TrackArguments?, _clientGUID: string?, ServerAnimator: ServerAnimator) -> FakeTrack?
+	new : (AnimationId: string, TrackArguments: TrackArguments?, ReplicateTo: {Player}?, _clientGUID: string?, ServerAnimator: ServerAnimator) -> FakeTrack?
 }
 
 export type ServerAnimator = {
@@ -39,7 +38,7 @@ export type ServerAnimator = {
 	_player : Player,
 	Enabled: boolean,
 	
-	LoadAnimation : (self: ServerAnimator, Animation: Animation|string, forceNew: boolean, TrackArguments: TrackArguments?, _clientGUID: string?) -> FakeTrack?,
+	LoadAnimation : (self: ServerAnimator, Animation: Animation|string, forceNew: boolean, TrackArguments: TrackArguments?, ReplicateTo: {Player}?, _clientGUID: string?) -> FakeTrack?,
 	Destroy : (self: ServerAnimator) -> (),
 }
 
@@ -50,9 +49,15 @@ export type TrackArguments = {
 	AnimationPriority: Enum.AnimationPriority?,
 }
 
+local function allExcept(Player: Player, t: {Player}?)
+	t = t or Players:GetPlayers()
+	table.remove(t, table.find(t, Player))
+	return t
+end
+
 local FakeTrack = {}
 FakeTrack.__index = FakeTrack
-function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, _clientGUID: string?, ServerAnimator: ServerAnimator): FakeTrack?
+function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, ReplicateTo: {Player}?, _clientGUID: string?, ServerAnimator: ServerAnimator): FakeTrack?
 	if not ServerAnimator then return nil end
 	if not AnimationId or AnimationId == "" then warn("Invalid AnimationId!",AnimationId,ServerAnimator._humanoid); return nil end
 	local self = setmetatable({
@@ -65,23 +70,24 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, _cl
 		Weight = TrackArguments and TrackArguments.Weight or 1;
 		Priority = TrackArguments and TrackArguments.AnimationPriority or Enum.AnimationPriority.Action;
 		AnimationId = AnimationId;
-		_ReplicateTo = nil;
-		_ReplicatedOn = {ServerAnimator._player};
+		_ReplicateTo = ReplicateTo;
 		_GUID = _clientGUID or Http:GenerateGUID();
 		_ClientReplicated = _clientGUID ~= nil;
 	},FakeTrack)
 	ServerAnimator.AnimationTracks[self._GUID] = self
 
 	local function SendPacket(Packet, Data)
-		if self._ReplicateTo == nil then
+		if self._ClientReplicated then
+			Packet.sendToList(Data, allExcept(ServerAnimator._player, self._ReplicatedOn))
+		elseif self._ReplicateTo == nil then
 			Packet.sendToAll(Data)
 		elseif #self._ReplicateTo > 0 then
-			Packet.sendToPlayers(self._ReplicateTo, Data)
+			Packet.sendToList(Data, self._ReplicateTo)
 		end
 	end
 
-	if not _clientGUID and ServerAnimator._player then
-		SendPacket(net.Animator.packets.LoadAnimation, {
+	if ServerAnimator._player then
+		local packet = {
 			player = ServerAnimator._player.UserId,
 			gUID = self._GUID,
 			animationId = AnimationId,
@@ -89,7 +95,8 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, _cl
 			speed = self.Speed ~= 1 and self.Speed or nil,
 			weight = self.Weight ~= 1 and self.Weight or nil,
 			looped = self._LoopPreference
-		})
+		}
+		SendPacket(net.Animator.packets.LoadAnimation, packet)
 	end
 	
 	--[[Server stop an animation using the animation track]]
@@ -133,8 +140,37 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, _cl
 	end
 	
 	--[[Replicate the animation track to specific players, if ReplicateTo is nil, it replicates to everyone, if it's an empty table, it replicates to no one.]]
-	function self.SetReplicateTo(self: FakeTrack, players: {Player})
+	function self.SetReplicateTo(self: FakeTrack, players: {Player}?)
+		local newReplicateTo = players
+
+		if self._ReplicateTo and players then
+			local deleteFrom = {}
+			for _, player in pairs(self._ReplicatedOn) do
+				if not table.find(players, player) then
+					table.insert(deleteFrom, player)
+				end
+			end
+			for _, player in pairs(players) do
+				if table.find(self._ReplicateTo) then
+					table.remove(newReplicateTo, table.find(newReplicateTo, player))
+				end
+			end
+			net.Animator.packets.Destroy.sendToList({ gUID = self._GUID, player = ServerAnimator._player.UserId }, deleteFrom)
+		end
+
 		self._ReplicateTo = players
+
+		if players and #newReplicateTo > 0 then
+			SendPacket(net.Animator.packets.LoadAnimation.sendToList({
+				player = ServerAnimator._player.UserId,
+				gUID = self._GUID,
+				animationId = self.AnimationId,
+				animationPriority = self.Priority.Value ~= 1000 and self.Priority.Value or nil,
+				speed = self.Speed ~= 1 and self.Speed or nil,
+				weight = self.Weight ~= 1 and self.Weight or nil,
+				looped = self._LoopPreference
+			}, newReplicateTo))
+		end
 	end
 
 	--[[Destroys the fake animation track, _replicateToAllExcept is only used internally, don't use it in normal code.]]
@@ -142,17 +178,20 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, _cl
 		self:Stop()
 		ServerAnimator.AnimationTracks[self._GUID] = nil
 		if self._ClientReplicated then
+			local packetData = { player = ServerAnimator._player.UserId, gUID = self._GUID }
 			if _replicateToAllExcept then
-				net.Animator.packets.Destroy.sendToAllExcept({ player = ServerAnimator._player.UserId, gUID = self._GUID }, _replicateToAllExcept)
+				net.Animator.packets.Destroy.sendToList(packetData, allExcept(_replicateToAllExcept, self._ReplicatedOn))
+			elseif self._ReplicateTo ~= nil then
+				net.Animator.packets.Destroy.sendToList(packetData, self._ReplicateTo)
 			else
-				net.Animator.packets.Destroy.sendToAll({ player = ServerAnimator._player.UserId, gUID = self._GUID })
+				net.Animator.packets.Destroy.sendToAll(packetData)
 			end
 		end
 		setmetatable(self, nil)
 		table.clear(self)
 		self = nil
 	end
-	
+
 	return self
 end
 
@@ -185,12 +224,13 @@ function module.new(Humanoid: Humanoid): ServerAnimator
 		if _clientGUID and self.AnimationTracks[_clientGUID] then return self.AnimationTracks[_clientGUID] end
 		if forceNew ~= true then
 			for guid: string, track: FakeTrack in self.AnimationTracks do
-				if track.AnimationId == targetID then
+				if (_clientGUID ~= nil) == track._ClientReplicated and track.AnimationId == targetID then
 					return track
 				end
 			end
 		end
-		local Track = self._jan:Add(FakeTrack.new(targetID, TrackArguments, _clientGUID, self))
+		local Track = self._jan:Add(FakeTrack.new(targetID, TrackArguments, ReplicateTo, _clientGUID, self))
+		self.AnimationTracks[Track._GUID] = Track
 		return Track
 	end
 

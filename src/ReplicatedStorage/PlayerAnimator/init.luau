@@ -64,9 +64,12 @@ local function getHumanoidFromPlayer(Player: Player?): Humanoid?
 	return Player.Character:FindFirstChildOfClass("Humanoid") or Player.Character:WaitForChild("Humanoid", 3)
 end
 
-local function ClientListenCallback(listener, callback: (Animator: LocalAnimator, data: { any }) -> ())
+local function ClientListenCallback(listener, callback: (Animator: LocalAnimator, data: { any }) -> (), dbug: string)
     listener.listen(function(data)
         local player = Players:GetPlayerByUserId(data.player)
+        if script:GetAttribute("NETWORK_DEBUG") then
+            print(string.format("[PlayerAnimator][Client] Received %s packet for Player %d with data:", dbug, tostring(data.player)), data)
+        end
         if not player or not getHumanoidFromPlayer(player) then
             return
         end
@@ -74,8 +77,11 @@ local function ClientListenCallback(listener, callback: (Animator: LocalAnimator
     end)
 end
 
-local function ServerListenCallback(listener, callback: (data: { any }, Player, Animator: ServerAnimator?) -> ( any ))
+local function ServerListenCallback(listener, callback: (data: { any }, Player, Animator: ServerAnimator?) -> ( any ), dbug: string)
     listener.listen(function(data, Player)
+        if script:GetAttribute("NETWORK_DEBUG") then
+            print(string.format("[PlayerAnimator][Server] Received %s packet from Player %d with data:", dbug, tostring(Player.UserId)), data)
+        end
         if not Player or not getHumanoidFromPlayer(Player) then
             return
         end
@@ -102,31 +108,31 @@ if IsClient then
             Weight = data.weight,
             AnimationPriority = priority,
         }, data.gUID)
-    end)
+    end, "LoadAnimation")
 
     ClientListenCallback(net.Animator.packets.Play, function(animator, data)
         animator:PlayByGUID(data.gUID, data.fadeTime, data.weight, data.speed, data.customPlayer)
-    end)
+    end, "Play")
 
     ClientListenCallback(net.Animator.packets.Stop, function(animator, data)
         animator:StopByGUID(data.gUID, data.fadeTime)
-    end)
+    end, "Stop")
 
     ClientListenCallback(net.Animator.packets.StopAll, function(animator, data)
         animator:StopAll(data.fadeTime, false)
-    end)
+    end, "StopAll")
 
     ClientListenCallback(net.Animator.packets.Destroy, function(animator, data)
         animator:DestroyAnimationByGUID(data.gUID)
-    end)
+    end, "Destroy")
 
     ClientListenCallback(net.Animator.packets.AdjustSpeed, function(animator, data)
         animator:AdjustSpeedByGUID(data.gUID, data.speed)
-    end)
+    end, "AdjustSpeed")
 
     ClientListenCallback(net.Animator.packets.AdjustWeight, function(animator, data)
         animator:AdjustWeightByGUID(data.gUID, data.weight, data.fadeTime)
-    end)
+    end, "AdjustWeight")
 
     task.spawn(function()
         local Preloads = net.Animator.queries.Init.invoke({ request = true })
@@ -182,6 +188,12 @@ if IsClient then
         end)
     end
 else
+    local function allExcept(Player: Player)
+        local list = Players:GetPlayers()
+        table.remove(list, table.find(list, Player))
+        return list
+    end
+
     if UGCemotes then
         local EmoteCache = {} :: {[number]: Animation}
         local PlayerEmotes = {} :: {[number]: {[string]: {number}}}
@@ -293,13 +305,13 @@ else
 
             local emoteEntry = emotesFolder:FindFirstChild(data.emoteId)
             if emoteEntry and string.find(emoteEntry:GetAttribute("Owners"), tostring(Player.UserId)) then
-                net.Animator.packets.Emote.sendToAllExcept({ emoteId = data.emoteId, player = data.player }, Player)
+                net.Animator.packets.Emote.sendToList({ emoteId = data.emoteId, player = data.player }, allExcept(Player))
                 return
             end
 
             for _, anim in emotesFolder:GetChildren() do
                 if anim.AnimationId == data.userId and string.find(anim:GetAttribute("Owners"), tostring(Player.UserId)) then
-                    net.Animator.packets.Emote.sendToAllExcept({ emoteId = data.emoteId, player = data.player }, Player)
+                    net.Animator.packets.Emote.sendToList({ emoteId = data.emoteId, player = data.player }, allExcept(Player))
                     break
                 end
             end
@@ -316,7 +328,7 @@ else
     
     local InitializedPlayers = {} :: {[Player]: number}
 
-	ServerListenCallback(net.Animator.queries.Init, function(req, Player, Animator)
+	net.Animator.queries.Init.listen(function(req, Player)
 		assert(Player and not InitializedPlayers[Player])
 		InitializedPlayers[Player] = os.clock()
 
@@ -352,42 +364,41 @@ else
             Speed = data.speed ~= nil and data.speed or 1,
             Weight = data.weight ~= nil and data.weight or 1,
             AnimationPriority = data.animationPriority ~= nil and AnimationPriorities[data.animationPriority] or nil,
-        }, data.gUID)
+        }, nil, data.gUID)
 		track.Speed = data.speed or 1
 		track.Weight = data.weight or 1
 		track.Looped = data.looped or false
-		net.Animator.packets.LoadAnimation.sendToAllExcept({ animationId = data.animationId, gUID = data.gUID, speed = data.speed, weight = data.weight, looped = data.looped, player = Player.UserId }, Player)
-	end)
+	end, "LoadAnimation")
 
 	ServerListenCallback(net.Animator.packets.Play, function(data, Player, Animator)
 		if Animator and Animator.AnimationTracks[data.gUID] then
-			net.Animator.packets.Play.sendToAllExcept({ gUID = data.gUID, fadeTime = data.fadeTime, weight = data.weight, speed = data.speed, player = Player.UserId }, Player)
+			Animator.AnimationTracks[data.gUID]:Play(data.fadeTime, data.weight, data.speed)
 		end
-	end)
+	end, "Play")
 
 	ServerListenCallback(net.Animator.packets.Stop, function(data, Player, Animator)
 		if Animator and Animator.AnimationTracks[data.gUID] then
-			net.Animator.packets.Stop.sendToAllExcept({ gUID = data.gUID, fadeTime = data.fadeTime, player = Player.UserId }, Player)
+            Animator.AnimationTracks[data.gUID]:Stop(data.fadeTime)
 		end
-	end)
+	end, "Stop")
 
 	ServerListenCallback(net.Animator.packets.AdjustSpeed, function(data, Player, Animator)
 		if Animator and Animator.AnimationTracks[data.gUID] then
-			net.Animator.packets.AdjustSpeed.sendToAllExcept({ gUID = data.gUID, speed = data.speed, player = Player.UserId }, Player)
+			Animator.AnimationTracks[data.gUID]:AdjustSpeed(data.speed)
 		end
-	end)
+	end, "AdjustSpeed")
 
 	ServerListenCallback(net.Animator.packets.AdjustWeight, function(data, Player, Animator)
 		if Animator and Animator.AnimationTracks[data.gUID] then
-			net.Animator.packets.AdjustWeight.sendToAllExcept({ gUID = data.gUID, weight = data.weight, fadeTime = data.fadeTime, player = Player.UserId }, Player)
+			Animator.AnimationTracks[data.gUID]:AdjustWeight(data.weight, data.fadeTime)
 		end
-	end)
+	end, "AdjustWeight")
 
 	ServerListenCallback(net.Animator.packets.Destroy, function(data, Player, Animator)
 		if Animator and Animator.AnimationTracks[data.gUID] then
 			Animator.AnimationTracks[data.gUID]:Destroy(Player)
 		end
-	end)
+	end, "Destroy")
 end
 
 return AnimatorModule
