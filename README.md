@@ -4,6 +4,8 @@
 <div align="center">
 
 # NotBlackrus' PlayerAnimator
+### ! A WORKAROUND TO ROBLOX'S BUILT-IN ANIMATION REPLICATION !
+<small>with some extra features for animations</small>
 
 </div>
 
@@ -47,8 +49,8 @@ This doesn't mean that your server cannot control animations, it just cannot see
 > [!NOTE]
 > While they are labeled ".newClient" and ".newServer", you can reuse them to recall the same Animator object.
 
-- #### Client Animator
-- **:LoadAnimation(Animation, Replicate, AnimationPriority)**
+- #### ClientAnimator
+- **:LoadAnimation(Animation, Replicate, TrackArguments)**
 For the method :LoadAnimation(), Replicate is a **3-INPUT** argument, here's what each input means:
 > **True**: The animation originates from this client (via your code), and should be replicated to other clients.
 
@@ -63,10 +65,15 @@ For the method :LoadAnimation(), Replicate is a **3-INPUT** argument, here's wha
 The method also has a Priority argument, this is your *only chance* to apply animation priority to replicated animations. (I do not personally care much for this property.)
 
 - **:Play(AnimationTrack, fadeTime, weight, speed, customPlayer)**
-In regards of methods, the client animator is designed to be as closely related to the AnimationTrack's methods as possible, this makes it easy for you to bring this resource into existing games. **customPlayer** is a boolean argument that determines how the animation will be played.
+AnimationTrack: The AnimationTrack.
+fadeTime: The duration of time that the animation's weight should be faded in for. (Default: 0.100000001)
+weight: The weight the animation is to be played at. (Default: 1)
+speed: The playback speed of the animation. (Default: 1)
+customPlayer: Sets whether the animation is played with Roblox's default animation player or the module's custom player (Default: false)
+
 > [!IMPORTANT]
 > The module's custom player utilizes a PreRender connection on the client to move the animation's TimePosition by deltaTime multiplied by it's Speed. This doesn't sound special at first, but note that Roblox's player seemingly fails to play animations relative to time like this when CPU processing slows, causing framerate to drop. **THIS IS HOW MOST EMOTES DESYNC WITH THEIR AUDIOS!!!**
-> It is also important to note that since the custom player keeps the animation from playing on Roblox's built-in player, that frame markers are likely to be skipped and not invoked.
+> It is also important to note that since the custom player keeps the animation from playing on Roblox's built-in player, that frame markers are more likely to be skipped and not invoked.
 
 - **Garbage Collection**
 While it only affects animation tracks that are replicated from the server, it is important to note that the animation tracks aren't *completely* deleted, and are instead turned into "ghost tracks". These ghost tracks are tables containing the animation's necessary data for "revival" whenever it's requested to play again.
@@ -77,3 +84,15 @@ AnimateHandler is a custom local script inside of StarterPlayerScripts that take
 > [!WARNING]
 > Roblox's built-in emote wheel ui uses CoreSecurity methods that normal scripts cannot access in order to load emotes, this module utilizes a loophole using InsertService by the server, and caches the emotes in a folder for the clients to use. This isn't relatively safe and can be prone to exploits, you can disable ugc emotes via the module's UGC_EMOTES attribute.
 
+- #### ServerAnimator
+
+- **:LoadAnimation(Animation, forceNew, TrackArguments, ReplicateTo)**
+Animation: An animation instance or string of the AnimationId.
+forceNew: The server animator will create a new FakeTrack, regardless of another FakeTrack with a matching AnimationId. (Default: True)
+TrackArguments: The set of properties you wish the FakeTrack to have before its values are replicated to clients for the first time. (Default: nil)
+ReplicateTo: An array of players the FakeTrack should replicate itself to, nil for everyone. (Default: nil)
+
+- #### FakeTrack
+Created by ServerAnimator:LoadAnimation(), these object-oriented tables are designed to mimic real [AnimationTracks](https://create.roblox.com/docs/en-us/reference/engine/classes/AnimationTrack) and their most basic functions. Calling methods from these FakeTracks network changes made from the server to all players listed in FakeTrack._SetReplicateTo. This restricts the server by not allowing it to receive events, and gives it less methods to work with.
+- **:SetReplicateTo(Players)**
+Players: An array of players the FakeTrack should replicate itself to. (Default: nil)
