@@ -1,0 +1,10 @@
+[package]
+name = "black/playeranimator"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+bytenet-max = "elitriare/bytenet-max@0.2.1"
+Janitor = "howmanysmall/janitor@^1.17.0"
+signalplus = "alexanderlindholt/signalplus@3.7.2"

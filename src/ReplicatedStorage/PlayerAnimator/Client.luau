@@ -1,4 +1,4 @@
-local net = require("./dependencies/net")
+local net = require("./net")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Http = game:GetService("HttpService")
@@ -30,8 +30,8 @@ export type LocalAnimator = {
 	AdjustWeightByGUID: (self: LocalAnimator, GUID: string, weight: number, fadeTime: number?) -> (),
 	AdjustSpeed: (self: LocalAnimator, Animation: AnimationTrack, speed: number) -> (),
 	AdjustWeight: (self: LocalAnimator, AnimationTrack: AnimationTrack, weight: number, fadeTime: number?) -> (),
-	LoadAnimationById: (self: LocalAnimator, AnimationId: string, Replicate: boolean?, AnimationPriority: Enum.AnimationPriority?, _serverGUID: string?) -> AnimationTrack?,
-	LoadAnimation: (self: LocalAnimator, Animation: Animation, Replicate: boolean?, AnimationPriority: Enum.AnimationPriority?, _serverGUID: string?) -> AnimationTrack?,
+	LoadAnimationById: (self: LocalAnimator, AnimationId: string, Replicate: boolean?, TrackArguments: TrackArguments?, _serverGUID: string?) -> AnimationTrack?,
+	LoadAnimation: (self: LocalAnimator, Animation: Animation, Replicate: boolean?, TrackArguments: TrackArguments?, _serverGUID: string?) -> AnimationTrack?,
 	Destroy: (self: LocalAnimator) -> (),
 }
 
@@ -41,6 +41,13 @@ export type TrackGhost = {
 	Weight: number;
 	Looped: boolean;
 	Priority: Enum.AnimationPriority;
+}
+
+export type TrackArguments = {
+	Looped: boolean?,
+	Speed: number?,
+	Weight: number?,
+	AnimationPriority: Enum.AnimationPriority?,
 }
 
 function module.new(Humanoid: Humanoid): LocalAnimator
@@ -135,7 +142,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	customPlayer adds the track to a PreRender connection's table to progress the animation's TimePosition by framerate, may result in markers being missed, result is reliable for audio synchronizing.]]
 	function self.Play(self: LocalAnimator, AnimationTrack: AnimationTrack, fadeTime: number?, weight: number?, speed: number?, customPlayer: boolean?)
 		if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
-			net.Animator.packets.Play.send({gUID = AnimationTrack:GetAttribute("GUID"), fadeTime = fadeTime, weight = weight, spseed = speed})
+			net.Animator.packets.Play.send({gUID = AnimationTrack:GetAttribute("GUID"), fadeTime = fadeTime, weight = weight, speed = speed})
 		end
 		
 		AnimationTrack:Play(fadeTime,weight,speed)
@@ -189,12 +196,12 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	True - This current client will send a message to all other clients to replicate with False
 	False - This current client is receiving a replicated animation
 	Nil - This current client will be the only one with this animation]]
-	function self.LoadAnimationById(self: LocalAnimator, AnimationId: string, Replicate: true|false|nil, AnimationPriority: Enum.AnimationPriority?, _serverGUID: string?)
+	function self.LoadAnimationById(self: LocalAnimator, AnimationId: string, Replicate: true|false|nil, TrackArguments: TrackArguments?, _serverGUID: string?)
 		local Animation = Instance.new("Animation")
 		Animation.AnimationId = AnimationId
 		game:GetService("Debris"):AddItem(Animation, 8)
 
-		return self:LoadAnimation(Animation, Replicate, AnimationPriority, _serverGUID)
+		return self:LoadAnimation(Animation, Replicate, TrackArguments, _serverGUID)
 	end
 
 	--[[Locally unloads an animation
@@ -217,19 +224,31 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	True - This current client will send a message to all other clients to replicate with False
 	False - This current client is receiving a replicated animation
 	Nil - This current client will be the only one with this animation]]
-	function self.LoadAnimation(self: LocalAnimator, Animation: Animation, Replicate: true|false|nil, AnimationPriority: Enum.AnimationPriority?, _serverGUID: string?): AnimationTrack
+	function self.LoadAnimation(self: LocalAnimator, Animation: Animation, Replicate: true|false|nil, TrackArguments: TrackArguments?, _serverGUID: string?): AnimationTrack
 		assert(self.Animator,"No animator to load the animation onto!")
 
 		local NewTrack = self.Animator:LoadAnimation(Animation) :: AnimationTrack
-		NewTrack.Priority = AnimationPriority or Enum.AnimationPriority.Action
+		NewTrack.Priority = TrackArguments and TrackArguments.AnimationPriority or Enum.AnimationPriority.Action
+		if TrackArguments.Looped ~= nil then
+			NewTrack.Looped = TrackArguments.Looped
+		end
 		NewTrack:SetAttribute("Replicated",Replicate ~= nil)
 		local GUID = Replicate == false and _serverGUID ~= nil and _serverGUID or Http:GenerateGUID()
 		NewTrack:SetAttribute("GUID",GUID)
 		self.AnimationTracks[GUID] = NewTrack
 		NewTrack:SetAttribute("AnimationId", Animation.AnimationId)
+		NewTrack:AdjustSpeed(TrackArguments and TrackArguments.Speed or 1)
+		NewTrack:AdjustWeight(TrackArguments and TrackArguments.Weight or 1, 0)
 		
 		if Replicate == true and self.Player == LocalPlayer then
-			net.Animator.packets.LoadAnimation.send({ animationId = Animation.AnimationId, AnimationPriority = NewTrack.Priority.Value, gUID = GUID })
+			net.Animator.packets.LoadAnimation.send({ 
+				animationId = Animation.AnimationId, 
+				AnimationPriority = NewTrack.Priority.Value ~= 1000 and NewTrack.Priority.Value or nil, 
+				looped = NewTrack.Looped == true and NewTrack.Looped or nil,
+				speed = TrackArguments and TrackArguments.Speed ~= nil and TrackArguments.Speed ~= 1 and TrackArguments.Speed or nil,
+				weight = TrackArguments and TrackArguments.Weight ~= nil and TrackArguments.Weight ~= 1 and TrackArguments.Weight or nil,
+				gUID = GUID
+			})
 			NewTrack.Destroying:Once(function()
 				net.Animator.packets.Destroy.send({ gUID = GUID })
 			end)

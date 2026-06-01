@@ -3,8 +3,8 @@ local Humanoid = script.Parent:WaitForChild("Humanoid",3)
 local Animator = PlayerAnimator.newClient(Humanoid)
 local TestSite = workspace:WaitForChild("AnimatorTest",3)
 
-local ReplicatedTrack = Animator:LoadAnimation(workspace.AnimatorTest.dance, true, nil)
-local Track = Animator:LoadAnimation(workspace.AnimatorTest.dance, nil, nil)
+local ReplicatedTrack = Animator:LoadAnimation(workspace.AnimatorTest.dance, true, { AnimationPriority = Enum.AnimationPriority.Action4 }, nil)
+local Track = Animator:LoadAnimation(workspace.AnimatorTest.dance, nil, { AnimationPriority = Enum.AnimationPriority.Action4 }, nil)
 
 local function clicker(whoClicked: Player, Play: boolean, Replicate: boolean?)
 	if whoClicked ~= game:GetService("Players").LocalPlayer then return end

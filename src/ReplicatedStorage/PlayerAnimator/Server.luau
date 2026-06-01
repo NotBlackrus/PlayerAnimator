@@ -1,5 +1,5 @@
-local Janitor = require("./dependencies/Janitor")
-local net = require("./dependencies/net")
+local Janitor = require("../Packages/Janitor")
+local net = require("./net")
 local Players = game:GetService("Players")
 local Http = game:GetService("HttpService")
 
@@ -14,10 +14,12 @@ export type FakeTrack = {
 	Looped : boolean,
 	Speed : number,
 	Weight : number,
-	AnimationPriority : Enum.AnimationPriority,
+	Priority : Enum.AnimationPriority,
 	_GUID : string,
 	_ClientReplicated : boolean,
 	AnimationId : string,
+	_ReplicateTo: {Player}?,
+	_ReplicatedOn: {Player},
 	
 	Stop : (self: FakeTrack, fadeTime: number?) -> (),
 	Play : (self: FakeTrack, fadeTime: number?, weight: number?, speed: number?, customPlayer: boolean?) -> (),
@@ -25,7 +27,7 @@ export type FakeTrack = {
 	AdjustWeight : (self: FakeTrack, weight: number, fadeTime: number?) -> (),
 	Destroy : (self: FakeTrack, _replicateToAllExcept: Player?) -> (),
 	
-	new : (AnimationId: string, AnimationPriority: Enum.AnimationPriority?, _clientGUID: string?, ServerAnimator: ServerAnimator) -> FakeTrack?
+	new : (AnimationId: string, TrackArguments: TrackArguments?, _clientGUID: string?, ServerAnimator: ServerAnimator) -> FakeTrack?
 }
 
 export type ServerAnimator = {
@@ -37,63 +39,113 @@ export type ServerAnimator = {
 	_player : Player,
 	Enabled: boolean,
 	
-	LoadAnimation : (self: ServerAnimator, Animation: Animation|string, forceNew: boolean, AnimationPriority: Enum.AnimationPriority?, _clientGUID: string?) -> FakeTrack?,
+	LoadAnimation : (self: ServerAnimator, Animation: Animation|string, forceNew: boolean, TrackArguments: TrackArguments?, _clientGUID: string?) -> FakeTrack?,
 	Destroy : (self: ServerAnimator) -> (),
+}
+
+export type TrackArguments = {
+	Looped: boolean?,
+	Speed: number?,
+	Weight: number?,
+	AnimationPriority: Enum.AnimationPriority?,
 }
 
 local FakeTrack = {}
 FakeTrack.__index = FakeTrack
-function FakeTrack.new(AnimationId: string, AnimationPriority: Enum.AnimationPriority?, _clientGUID: string?, ServerAnimator: ServerAnimator): FakeTrack?
+function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, _clientGUID: string?, ServerAnimator: ServerAnimator): FakeTrack?
 	if not ServerAnimator then return nil end
-	if not AnimationId or AnimationId == "" then warn("Invalid AnimationId!",AnimationId,ServerAnimator._humanoid) return nil end
-	AnimationPriority = AnimationPriority or Enum.AnimationPriority.Core
+	if not AnimationId or AnimationId == "" then warn("Invalid AnimationId!",AnimationId,ServerAnimator._humanoid); return nil end
 	local self = setmetatable({
 		IsPlaying = false;
 		TimePosition = 0;
 		Length = 0;
-		Looped = false;
-		Speed = 1;
-		Weight = 1;
-		AnimationPriority = AnimationPriority;
+		Looped = TrackArguments and TrackArguments.Looped or false;
+		_LoopPreference = TrackArguments and TrackArguments.Looped or nil;
+		Speed = TrackArguments and TrackArguments.Speed or 1;
+		Weight = TrackArguments and TrackArguments.Weight or 1;
+		Priority = TrackArguments and TrackArguments.AnimationPriority or Enum.AnimationPriority.Action;
 		AnimationId = AnimationId;
+		_ReplicateTo = nil;
+		_ReplicatedOn = {ServerAnimator._player};
 		_GUID = _clientGUID or Http:GenerateGUID();
 		_ClientReplicated = _clientGUID ~= nil;
 	},FakeTrack)
 	ServerAnimator.AnimationTracks[self._GUID] = self
-	if not _clientGUID and ServerAnimator and ServerAnimator._player then
-		net.Animator.packets.LoadAnimation.sendToAll({ player = ServerAnimator._player, animationPriority = AnimationPriority.Value, animationId = AnimationId, gUID = self._GUID })
+
+	local function SendPacket(Packet, Data)
+		if self._ReplicateTo == nil then
+			Packet.sendToAll(Data)
+		elseif #self._ReplicateTo > 0 then
+			Packet.sendToPlayers(self._ReplicateTo, Data)
+		end
+	end
+
+	if not _clientGUID and ServerAnimator._player then
+		SendPacket(net.Animator.packets.LoadAnimation, {
+			player = ServerAnimator._player.UserId,
+			gUID = self._GUID,
+			animationId = AnimationId,
+			animationPriority = self.Priority.Value ~= 1000 and self.Priority.Value or nil,
+			speed = self.Speed ~= 1 and self.Speed or nil,
+			weight = self.Weight ~= 1 and self.Weight or nil,
+			looped = self._LoopPreference
+		})
 	end
 	
 	--[[Server stop an animation using the animation track]]
 	function self.Stop(self: FakeTrack, fadeTime: number?)
-		net.Animator.packets.Stop.sendToAll({ player = ServerAnimator._player, fadeTime = fadeTime, gUID = self._GUID })
+		SendPacket(net.Animator.packets.Stop, {
+			player = ServerAnimator._player.UserId,
+			fadeTime = fadeTime,
+			gUID = self._GUID
+		})
 	end
 	
 	--[[Server play an animation using the animation track]]
 	function self.Play(self: FakeTrack, fadeTime: number?, weight: number?, speed: number?, customPlayer: boolean?)
-		net.Animator.packets.Play.sendToAll({player = ServerAnimator._player, gUID = self._GUID, fadeTime = fadeTime, weight = weight, speed = speed, customPlayer = customPlayer})
+		SendPacket(net.Animator.packets.Play, {
+			player = ServerAnimator._player.UserId,
+			gUID = self._GUID,
+			fadeTime = fadeTime,
+			weight = weight,
+			speed = speed,
+			customPlayer = customPlayer
+		})
 	end
 	
 	--[[Adjust the speed of an animation using the animation track]]
 	function self.AdjustSpeed(self: FakeTrack, speed: number?)
-		net.Animator.packets.AdjustSpeed.sendToAll({player = ServerAnimator._player, gUID = self._GUID , speed = speed})
+		SendPacket(net.Animator.packets.AdjustSpeed, {
+			player = ServerAnimator._player.UserId,
+			gUID = self._GUID,
+			speed = speed
+		})
 	end
 	
 	--[[Adjust the weight of an animation using the animation track]]
 	function self.AdjustWeight(self: FakeTrack, weight: number?, fadeTime: number?)
-		net.Animator.packets.AdjustWeight.sendToAll({player = ServerAnimator._player, gUID = self._GUID, weight = weight, fadeTime = fadeTime})
+		SendPacket(net.Animator.packets.AdjustWeight, {
+			player = ServerAnimator._player.UserId,
+			gUID = self._GUID,
+			weight = weight,
+			fadeTime = fadeTime
+		})
 	end
 	
+	--[[Replicate the animation track to specific players, if ReplicateTo is nil, it replicates to everyone, if it's an empty table, it replicates to no one.]]
+	function self.SetReplicateTo(self: FakeTrack, players: {Player})
+		self._ReplicateTo = players
+	end
+
 	--[[Destroys the fake animation track, _replicateToAllExcept is only used internally, don't use it in normal code.]]
-	function self:Destroy(_replicateToAllExcept: Player?)
-		local self = self :: FakeTrack
+	function self.Destroy(self: FakeTrack, _replicateToAllExcept: Player?)
 		self:Stop()
 		ServerAnimator.AnimationTracks[self._GUID] = nil
 		if self._ClientReplicated then
 			if _replicateToAllExcept then
-				net.Animator.packets.Destroy.sendToAllExcept({ player = ServerAnimator._player, gUID = self._GUID }, _replicateToAllExcept)
+				net.Animator.packets.Destroy.sendToAllExcept({ player = ServerAnimator._player.UserId, gUID = self._GUID }, _replicateToAllExcept)
 			else
-				net.Animator.packets.Destroy.sendToAll({ player = ServerAnimator._player, gUID = self._GUID })
+				net.Animator.packets.Destroy.sendToAll({ player = ServerAnimator._player.UserId, gUID = self._GUID })
 			end
 		end
 		setmetatable(self, nil)
@@ -119,8 +171,9 @@ function module.new(Humanoid: Humanoid): ServerAnimator
 	--[[
 	Server load an animation onto the Character's Animator.
 	forceNew for creating a new animation track even if an identical one is already loaded, default is false
+	ReplicateTo is a table of players to replicate the animation to, if nil, it replicates to everyone, if empty, it replicates to no one
 	]]
-	function self.LoadAnimation(self: ServerAnimator, Animation: Animation|string, forceNew: boolean?, AnimationPriority: Enum.AnimationPriority?, _clientGUID: string?): FakeTrack?
+	function self.LoadAnimation(self: ServerAnimator, Animation: Animation|string, forceNew: boolean?, TrackArguments: TrackArguments?, ReplicateTo: {Player}?, _clientGUID: string?): FakeTrack?
 		local targetID: string
 		if type(Animation) == "string" then
 			targetID = Animation
@@ -135,7 +188,7 @@ function module.new(Humanoid: Humanoid): ServerAnimator
 				end
 			end
 		end
-		local Track = self._jan:Add(FakeTrack.new(targetID, AnimationPriority, _clientGUID, self))
+		local Track = self._jan:Add(FakeTrack.new(targetID, TrackArguments, _clientGUID, self))
 		return Track
 	end
 
