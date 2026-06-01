@@ -36,7 +36,7 @@ function AnimatorModule.new(Humanoid)
 	local handlerJanitor = Janitor.new()
 
 	handlerJanitor:Add(NewHandler, "Destroy")
-	handlerJanitor:LinkToInstance(Humanoid)
+    
 	handlerJanitor:Add(Humanoid.Destroying:Connect(function()
 		cache[Humanoid] = nil
 		handlerJanitor:Destroy()
