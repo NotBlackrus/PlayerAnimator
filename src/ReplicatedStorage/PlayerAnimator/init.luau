@@ -61,7 +61,7 @@ local function getHumanoidFromPlayer(Player: Player?): Humanoid?
 		return nil
 	end
 
-	return Player.Character:FindFirstChildOfClass("Humanoid")
+	return Player.Character:FindFirstChildOfClass("Humanoid") or Player.Character:WaitForChild("Humanoid", 3)
 end
 
 local function ClientListenCallback(listener, callback: (Animator: LocalAnimator, data: { any }) -> ())
@@ -76,8 +76,10 @@ end
 
 local function ServerListenCallback(listener, callback: (data: { any }, Player, Animator: ServerAnimator?) -> ( any ))
     listener.listen(function(data, Player)
-        local Humanoid = getHumanoidFromPlayer(data.player)
-        return callback(data, Player, Humanoid and AnimatorModule.newServer(Humanoid) or nil)
+        if not Player or not getHumanoidFromPlayer(Player) then
+            return
+        end
+        return callback(data, Player, AnimatorModule.newServer(getHumanoidFromPlayer(Player)))
     end)
 end
 
@@ -304,6 +306,14 @@ else
         end)
     end
 
+    Players.PlayerAdded:Connect(function(Player)
+		Player.CharacterAdded:Connect(function(Character)
+			local Humanoid = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid", 10)
+			if not Humanoid then return end
+			AnimatorModule.newServer(Humanoid)
+		end)
+	end)
+    
     local InitializedPlayers = {} :: {[Player]: number}
 
 	ServerListenCallback(net.Animator.queries.Init, function(req, Player, Animator)

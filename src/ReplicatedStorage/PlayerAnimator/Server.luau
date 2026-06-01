@@ -159,9 +159,11 @@ end
 function module.new(Humanoid: Humanoid): ServerAnimator
 	local self = setmetatable({},module)
 	self._humanoid = Humanoid :: Humanoid
-	if self._humanoid:FindFirstChildOfClass("Animator") then
-		self._humanoid:FindFirstChildOfClass("Animator"):Destroy()
-	end
+	task.spawn(function()
+		if self._humanoid:FindFirstChildOfClass("Animator") or self._humanoid:WaitForChild("Animator", 3) then
+			self._humanoid:FindFirstChildOfClass("Animator"):Destroy()
+		end
+	end)
 	self.AnimationTracks = {} :: {[string]:FakeTrack} --List of GUIDs that are loaded from the server
 	self._destroyed = false
 	self._jan = Janitor.new()
