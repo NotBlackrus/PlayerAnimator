@@ -1,4 +1,4 @@
-local module = game:GetService("ReplicatedStorage"):WaitForChild("PlayerAnimator")
+local module = script.Parent.Parent.Parent --REPLACE WITH MODULE PATH
 local net = require(module:WaitForChild("net"))
 local PlayerAnimator = require(module)
 

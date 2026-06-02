@@ -1,9 +1,8 @@
 --[[
 	┌──────────────────────────────────────────────────────────────────────────┐
-	│  PlayerAnimator Module (Refactored)                                      │
+	│  NotBlackrus' PlayerAnimator Module                                      │
 	├──────────────────────────────────────────────────────────────────────────┤
-	│  This version keeps initialization explicit, reduces side effects on     │
-	│  require(), and separates client/server packet bootstrapping.            │
+    │  MIT License                                                             │
 	└──────────────────────────────────────────────────────────────────────────┘
 --]]
 
@@ -15,15 +14,16 @@ local InsertService = game:GetService("InsertService")
 
 local AnimatorModule = {}
 
-local Client = require("@self/Client")
-local Server = require("@self/Server")
-local net = require("@self/net")
-local Janitor = require("./Packages/Janitor")
+local types = require("./playeranimator/types")
+local Client = require("./playeranimator/Client")
+local Server = require("./playeranimator/Server")
+local net = require("./playeranimator/net")
+local Janitor = require("./Janitor")
 
-export type LocalAnimator = Client.LocalAnimator
-export type ServerAnimator = Server.ServerAnimator
-export type FakeTrack = Server.FakeTrack
-export type TrackArguments = Server.TrackArguments
+type LocalAnimator = types.LocalAnimator
+type ServerAnimator = types.ServerAnimator
+type FakeTrack = types.FakeTrack
+type TrackArguments = types.TrackArguments
 
 local cache = {} :: {[Humanoid]: LocalAnimator | ServerAnimator}
 
@@ -243,7 +243,7 @@ else
             local function CacheEmotes(Character: Model)
                 local Humanoid = Character:WaitForChild("Humanoid", 3) :: Humanoid
                 if not Humanoid then
-                    return warn("Could not find Humanoid for", Character)
+                    warn("Could not find Humanoid for", Character); return
                 end
 
                 local Description = Humanoid:GetAppliedDescription()

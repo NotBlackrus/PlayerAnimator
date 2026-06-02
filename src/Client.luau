@@ -1,4 +1,5 @@
 local net = require("./net")
+local types = require("./types")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Http = game:GetService("HttpService")
@@ -8,47 +9,12 @@ local GARBAGE_TIMER = script.Parent:GetAttribute("GARBAGE_TIMER") or 30
 local GARBAGE_DEBUG = script.Parent:GetAttribute("GARBAGE_DEBUG") or false
 local DEFAULT_CUSTOM_PLAYER = script.Parent:GetAttribute("DEFAULT_CUSTOM_PLAYER") or false
 
+type TrackArguments = types.TrackArguments
+type LocalAnimator = types.LocalAnimator
+type TrackGhost = types.TrackGhost
+
 local module = {}
 module.__index = module
-
-export type LocalAnimator = {
-	__index: LocalAnimator,
-	_humanoid: Humanoid,
-	AnimationTracks: {[string]: AnimationTrack},
-	LastUse: {[AnimationTrack]: number},
-	Animator: Animator,
-	_destroyed: boolean,
-	Player: Player?,
-	customPlayer: {[AnimationTrack]: {speed: number, timePosition: number}},
-	_customConnection: RBXScriptConnection,
-	PlayByGUID: (self: LocalAnimator, GUID: string, fadeTime: number?, weight: number?, speed: number?, customPlayer: boolean?) -> AnimationTrack?,
-	Play: (self: LocalAnimator, Animation: Animation, fadeTime: number?, weight: number?, speed: number?, customPlayer: boolean?) -> AnimationTrack?,
-	StopByGUID: (self: LocalAnimator, GUID: string, fadeTime: number?) -> (),
-	Stop: (self: LocalAnimator, Animation: Animation, fadeTime: number?) -> (),
-	StopAll: (self: LocalAnimator, fadeTime: number?, replicate: boolean?) -> (),
-	AdjustSpeedByGUID: (self: LocalAnimator, GUID: string, speed: number) -> (),
-	AdjustWeightByGUID: (self: LocalAnimator, GUID: string, weight: number, fadeTime: number?) -> (),
-	AdjustSpeed: (self: LocalAnimator, Animation: AnimationTrack, speed: number) -> (),
-	AdjustWeight: (self: LocalAnimator, AnimationTrack: AnimationTrack, weight: number, fadeTime: number?) -> (),
-	LoadAnimationById: (self: LocalAnimator, AnimationId: string, Replicate: boolean?, TrackArguments: TrackArguments?, _serverGUID: string?) -> AnimationTrack?,
-	LoadAnimation: (self: LocalAnimator, Animation: Animation, Replicate: boolean?, TrackArguments: TrackArguments?, _serverGUID: string?) -> AnimationTrack?,
-	Destroy: (self: LocalAnimator) -> (),
-}
-
-export type TrackGhost = {
-	AnimationId: string;
-	Speed: number;
-	Weight: number;
-	Looped: boolean;
-	Priority: Enum.AnimationPriority;
-}
-
-export type TrackArguments = {
-	Looped: boolean?,
-	Speed: number?,
-	Weight: number?,
-	AnimationPriority: Enum.AnimationPriority?,
-}
 
 function module.new(Humanoid: Humanoid): LocalAnimator
 	local self = setmetatable({},module)

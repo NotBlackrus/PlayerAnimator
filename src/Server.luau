@@ -1,53 +1,15 @@
-local Janitor = require("../Packages/Janitor")
+local Janitor = require("../Janitor")
 local net = require("./net")
+local types = require("./types")
 local Players = game:GetService("Players")
 local Http = game:GetService("HttpService")
 
+type TrackArguments = types.TrackArguments
+type ServerAnimator = types.ServerAnimator
+type FakeTrack = types.FakeTrack
+
 local module = {}
 module.__index = module
-
-export type FakeTrack = {
-	__index : FakeTrack,
-	IsPlaying : boolean,
-	TimePosition : number,
-	Length : number,
-	Looped : boolean,
-	Speed : number,
-	Weight : number,
-	Priority : Enum.AnimationPriority,
-	_GUID : string,
-	_ClientReplicated : boolean,
-	AnimationId : string,
-	_ReplicateTo: {Player}?,
-	
-	Stop : (self: FakeTrack, fadeTime: number?) -> (),
-	Play : (self: FakeTrack, fadeTime: number?, weight: number?, speed: number?, customPlayer: boolean?) -> (),
-	AdjustSpeed : (self: FakeTrack, speed: number) -> (),
-	AdjustWeight : (self: FakeTrack, weight: number, fadeTime: number?) -> (),
-	Destroy : (self: FakeTrack, _replicateToAllExcept: Player?) -> (),
-	
-	new : (AnimationId: string, TrackArguments: TrackArguments?, ReplicateTo: {Player}?, _clientGUID: string?, ServerAnimator: ServerAnimator) -> FakeTrack?
-}
-
-export type ServerAnimator = {
-	__index : ServerAnimator,
-	_humanoid : Humanoid,
-	AnimationTracks : {[string]: FakeTrack},
-	_destroyed: boolean,
-	_jan : Janitor.Janitor,
-	_player : Player,
-	Enabled: boolean,
-	
-	LoadAnimation : (self: ServerAnimator, Animation: Animation|string, forceNew: boolean, TrackArguments: TrackArguments?, ReplicateTo: {Player}?, _clientGUID: string?) -> FakeTrack?,
-	Destroy : (self: ServerAnimator) -> (),
-}
-
-export type TrackArguments = {
-	Looped: boolean?,
-	Speed: number?,
-	Weight: number?,
-	AnimationPriority: Enum.AnimationPriority?,
-}
 
 local function allExcept(Player: Player, t: {Player}?)
 	t = t or Players:GetPlayers()

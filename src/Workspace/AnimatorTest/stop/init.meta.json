@@ -1,8 +1,0 @@
-{
-    "className": "Part",
-    "properties": {
-        "Anchored": true,
-        "Color": [1, 0, 0],
-        "Position": [-7.5, 3.5, -24]
-    }
-}

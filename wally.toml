@@ -1,8 +1,13 @@
 [package]
-name = "black/playeranimator"
-version = "0.1.0"
+name = "notblackrus/playeranimator"
+description = "Take control of your player's replicated animations!"
+version = "0.1.3"
+license = "MIT"
+authors = ["NotBlackrus"]
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
+repository = "https://github.com/NotBlackrus/PlayerAnimator"
+exclude = ["aftman.toml", "rokit.toml", "*.rbxl", "*.rbxm", "*.lua"]
 
 [dependencies]
 bytenet-max = "elitriare/bytenet-max@0.2.1"

@@ -2,7 +2,7 @@
 This is just my personal preference for networking, you can choose any other resource, as long as you modify the module to support it. Shouldn't be too difficult, just a bit annoying!
 ]]
 
-local byte = require("../Packages/bytenet-max")
+local byte = require("../bytenet-max")
 
 return {
 	Animator = byte.defineNamespace("Animator", function()
