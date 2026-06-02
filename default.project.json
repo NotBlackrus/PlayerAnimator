@@ -1,6 +1,6 @@
 {
   "name": "playeranimator",
   "tree": {
-    "$path": "playeranimator/src"
+    "$path": "src"
   }
 }
