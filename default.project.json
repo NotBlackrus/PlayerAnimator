@@ -1,6 +1,10 @@
 {
   "name": "playeranimator",
   "tree": {
-    "$path": "src"
+    "$className": "Folder",
+    "$path": "Packages",
+    "PlayerAnimator": {
+      "$path": "src"
+    }
   }
 }

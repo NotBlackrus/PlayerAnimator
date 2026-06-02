@@ -1,9 +1,36 @@
+--[[
+	┌──────────────────────────────────────────────────────────────────────────┐
+    │  MIT License                                                             │
+    │  Copyright (c) 2026 @NotBlackrus                                         │
+    │  Permission is hereby granted, free of charge, to any person obtaining   │
+    │  a copy of this software and associated documentation files              │
+    │  (the "Software"), to deal in the Software without restriction,          │
+    │  including without limitation the rights to use, copy, modify, merge,    │
+    │  publish, distribute, sublicense, and/or sell copies of the Software,    │
+    │  and to permit persons to whom the Software is furnished to do so,       │
+    │  subject to the following conditions:                                    │
+    │  The above copyright notice and this permission notice shall be included │
+    │  in all copies or substantial portions of the Software.                  │
+    │  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS │
+    │  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF              │
+    │  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  │
+    │  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY    │
+    │  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,    │
+    │  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE       │
+    │  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                  │
+	└──────────────────────────────────────────────────────────────────────────┘
+]]
+
+local Players = game:GetService("Players")
+
 local module = script.Parent.Parent.Parent --REPLACE WITH MODULE PATH
 local net = require(module:WaitForChild("net"))
 local PlayerAnimator = require(module)
+PlayerAnimator.init()
 
-local UGC_EMOTES = module:GetAttribute("UGC_EMOTES") or false
-local ugcEmotes = UGC_EMOTES and module:WaitForChild("ugcEmotes", 5) or nil
+local Config = module:GetAttributes():: PlayerAnimator.Config
+
+local ugcEmotes = Config.UGC_EMOTES and module:WaitForChild("ugcEmotes", 5) or nil
 local function setupCharacterAnimations(Character)
 	local Humanoid = Character:WaitForChild("Humanoid") :: Humanoid
 	local Animator = PlayerAnimator.newClient(Humanoid)
@@ -1515,7 +1542,7 @@ local function setupCharacterAnimations(Character)
 	end
 end
 
-if UGC_EMOTES then
+if Config.UGC_EMOTES then
 	net.Animator.packets.Emote.listen(function(data)
 		local Player = game:GetService("Players"):GetPlayerByUserId(data.userId)
 		if not Player or not Player.Character or not ugcEmotes:FindFirstChild(data.emoteId) then return end
@@ -1526,9 +1553,7 @@ if UGC_EMOTES then
 	end)
 end
 
-game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, UGC_EMOTES)
-
-local Players = game:GetService("Players")
+game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.EmotesMenu, Config.UGC_EMOTES)
 
 for _, player in pairs(Players:GetPlayers()) do
 	if player.Character then

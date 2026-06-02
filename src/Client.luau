@@ -1,3 +1,26 @@
+--[[
+	┌──────────────────────────────────────────────────────────────────────────┐
+    │  MIT License                                                             │
+    │  Copyright (c) 2026 @NotBlackrus                                         │
+    │  Permission is hereby granted, free of charge, to any person obtaining   │
+    │  a copy of this software and associated documentation files              │
+    │  (the "Software"), to deal in the Software without restriction,          │
+    │  including without limitation the rights to use, copy, modify, merge,    │
+    │  publish, distribute, sublicense, and/or sell copies of the Software,    │
+    │  and to permit persons to whom the Software is furnished to do so,       │
+    │  subject to the following conditions:                                    │
+    │  The above copyright notice and this permission notice shall be included │
+    │  in all copies or substantial portions of the Software.                  │
+    │  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS │
+    │  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF              │
+    │  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  │
+    │  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY    │
+    │  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,    │
+    │  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE       │
+    │  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                  │
+	└──────────────────────────────────────────────────────────────────────────┘
+]]
+
 local net = require("./net")
 local types = require("./types")
 local Players = game:GetService("Players")
@@ -5,13 +28,15 @@ local LocalPlayer = Players.LocalPlayer
 local Http = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
-local GARBAGE_TIMER = script.Parent:GetAttribute("GARBAGE_TIMER") or 30
-local GARBAGE_DEBUG = script.Parent:GetAttribute("GARBAGE_DEBUG") or false
-local DEFAULT_CUSTOM_PLAYER = script.Parent:GetAttribute("DEFAULT_CUSTOM_PLAYER") or false
-
 type TrackArguments = types.TrackArguments
 type LocalAnimator = types.LocalAnimator
 type TrackGhost = types.TrackGhost
+type Config = types.Config
+
+local Config = {}:: Config
+for key,value in script.Parent:GetAttributes() do
+    Config[key] = value
+end
 
 local module = {}
 module.__index = module
@@ -19,7 +44,7 @@ module.__index = module
 function module.new(Humanoid: Humanoid): LocalAnimator
 	local self = setmetatable({},module)
 	self._humanoid = Humanoid :: Humanoid
-	self.AnimationTracks = {} :: {[string]:AnimationTrack|string} --indexed by GUID, string is encoded json data for the server-replicated unused animation for recovery purposes- and to save memory
+	self.AnimationTracks = {} :: {[string]:AnimationTrack|string} --indexed by GUID, string is encoded json data for the server-replicated unused animation for recovery purposes- and to save some memory
 	self.LastUse = {} :: {[AnimationTrack]: number} --tracking the last use of an animation track, this will be used to garbage collect unused (but loaded) animations until they're used again
 	self.Animator = Instance.new("Animator", self._humanoid) :: Animator
 	self._destroyed = false
@@ -42,17 +67,17 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 				self.customPlayer[a].timePosition = updatedTime
 			end
 		end
-		if GARBAGE_TIMER == -1 then return end -- if the timer is set to -1, garbage collection is disabled
+		if Config.GARBAGE_TIMER == -1 then return end -- if the timer is set to -1, garbage collection is disabled
 		for guid, track in self.AnimationTracks do
 			if type(track) ~= "string" and track:GetAttribute("Replicated") == false then
-				if self.LastUse[track] and os.time() - self.LastUse[track] >= GARBAGE_TIMER then
+				if self.LastUse[track] and os.time() - self.LastUse[track] >= Config.GARBAGE_TIMER then
 					if track.IsPlaying then
-						if GARBAGE_DEBUG then
+						if Config.GARBAGE_DEBUG then
 							warn("Animation track with GUID: "..guid.." is inactive but currently playing, resetting last use time instead of garbage collecting.")
 						end
 						self.LastUse[track] = os.time() -- if the track is currently playing, reset its last use time instead of garbage collecting it
 					else
-						if GARBAGE_DEBUG then
+						if Config.GARBAGE_DEBUG then
 							warn("Garbage collecting animation track with GUID: "..guid.." due to inactivity.")
 						end
 						self.LastUse[track] = nil
@@ -77,7 +102,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		local track = self.AnimationTracks[GUID]
 		if not track then return nil end
 		if type(track) == "string" and self._humanoid and self.Animator then --begin animation recovery
-			if GARBAGE_DEBUG then
+			if Config.GARBAGE_DEBUG then
 				warn("Recovering animation track with GUID: "..GUID.." from encoded data: "..track)
 			end
 			local revivalAnim = Instance.new("Animation")
@@ -96,7 +121,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		end
 		track:Play(fadeTime, weight, speed)
 		self.LastUse[track] = os.time()
-		if DEFAULT_CUSTOM_PLAYER == true and customPlayer ~= false or customPlayer == true then
+		if Config.DEFAULT_CUSTOM_PLAYER == true and customPlayer ~= false or customPlayer == true then
 			track:AdjustSpeed(0)
 			if speed == nil then speed = 1 end
 			self.customPlayer[track] = {speed = speed, timePosition = 0}
@@ -113,7 +138,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		
 		AnimationTrack:Play(fadeTime,weight,speed)
 		self.LastUse[AnimationTrack] = os.time()
-		if DEFAULT_CUSTOM_PLAYER == true and customPlayer ~= false or customPlayer == true then
+		if Config.DEFAULT_CUSTOM_PLAYER == true and customPlayer ~= false or customPlayer == true then
 			AnimationTrack:AdjustSpeed(0)
 			if speed == nil then speed = 1 end
 			self.customPlayer[AnimationTrack] = {speed = speed, timePosition = 0}

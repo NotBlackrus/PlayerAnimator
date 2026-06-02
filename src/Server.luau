@@ -1,3 +1,26 @@
+--[[
+	┌──────────────────────────────────────────────────────────────────────────┐
+    │  MIT License                                                             │
+    │  Copyright (c) 2026 @NotBlackrus                                         │
+    │  Permission is hereby granted, free of charge, to any person obtaining   │
+    │  a copy of this software and associated documentation files              │
+    │  (the "Software"), to deal in the Software without restriction,          │
+    │  including without limitation the rights to use, copy, modify, merge,    │
+    │  publish, distribute, sublicense, and/or sell copies of the Software,    │
+    │  and to permit persons to whom the Software is furnished to do so,       │
+    │  subject to the following conditions:                                    │
+    │  The above copyright notice and this permission notice shall be included │
+    │  in all copies or substantial portions of the Software.                  │
+    │  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS │
+    │  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF              │
+    │  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  │
+    │  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY    │
+    │  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,    │
+    │  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE       │
+    │  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                  │
+	└──────────────────────────────────────────────────────────────────────────┘
+]]
+
 local Janitor = require("../Janitor")
 local net = require("./net")
 local types = require("./types")
@@ -7,6 +30,12 @@ local Http = game:GetService("HttpService")
 type TrackArguments = types.TrackArguments
 type ServerAnimator = types.ServerAnimator
 type FakeTrack = types.FakeTrack
+type Config = types.Config
+
+local Config = {}:: Config
+for key,value in script.Parent:GetAttributes() do
+    Config[key] = value
+end
 
 local module = {}
 module.__index = module
@@ -38,10 +67,25 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, Rep
 	},FakeTrack)
 	ServerAnimator.AnimationTracks[self._GUID] = self
 
-	local function SendPacket(Packet, Data)
+	local function NETWORK_DEBUG(Name, Target, Data)
+		if Config.NETWORK_DEBUG then
+			warn(
+				"[PlayerAnimator][Server] Sending "..Name.." packet from "..(self._ClientReplicated and "Client" or "Server").."-based track to ",
+				Target or "EVERYONE",
+				" with data: ", 
+				Data
+			)
+		end
+	end
+
+	local function SendPacket(Packet, Data, dbug)
+		NETWORK_DEBUG(dbug, self._ReplicateTo, Data)
 		if self._ClientReplicated then
 			Packet.sendToList(Data, allExcept(ServerAnimator._player, self._ReplicatedOn))
 		elseif self._ReplicateTo == nil then
+			if Config.NETWORK_DEBUG then
+				warn(string.format("[PlayerAnimator][Server] Sending %s packet to all with data: ", dbug), Data)
+			end
 			Packet.sendToAll(Data)
 		elseif #self._ReplicateTo > 0 then
 			Packet.sendToList(Data, self._ReplicateTo)
@@ -58,7 +102,7 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, Rep
 			weight = self.Weight ~= 1 and self.Weight or nil,
 			looped = self._LoopPreference
 		}
-		SendPacket(net.Animator.packets.LoadAnimation, packet)
+		SendPacket(net.Animator.packets.LoadAnimation, packet, "LoadAnimation")
 	end
 	
 	--[[Server stop an animation using the animation track]]
@@ -67,7 +111,7 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, Rep
 			player = ServerAnimator._player.UserId,
 			fadeTime = fadeTime,
 			gUID = self._GUID
-		})
+		}, "Stop")
 	end
 	
 	--[[Server play an animation using the animation track]]
@@ -79,7 +123,7 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, Rep
 			weight = weight,
 			speed = speed,
 			customPlayer = customPlayer
-		})
+		}, "Play")
 	end
 	
 	--[[Adjust the speed of an animation using the animation track]]
@@ -88,7 +132,7 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, Rep
 			player = ServerAnimator._player.UserId,
 			gUID = self._GUID,
 			speed = speed
-		})
+		}, "AdjustSpeed")
 	end
 	
 	--[[Adjust the weight of an animation using the animation track]]
@@ -98,7 +142,7 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, Rep
 			gUID = self._GUID,
 			weight = weight,
 			fadeTime = fadeTime
-		})
+		}, "AdjustWeight")
 	end
 	
 	--[[Replicate the animation track to specific players, if ReplicateTo is nil, it replicates to everyone, if it's an empty table, it replicates to no one.]]
@@ -117,13 +161,18 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, Rep
 					table.remove(newReplicateTo, table.find(newReplicateTo, player))
 				end
 			end
-			net.Animator.packets.Destroy.sendToList({ gUID = self._GUID, player = ServerAnimator._player.UserId }, deleteFrom)
+			if #deleteFrom > 0 then
+				local destroyPacket = { gUID = self._GUID, player = ServerAnimator._player.UserId }
+
+				NETWORK_DEBUG("Destroy", deleteFrom, destroyPacket)
+				net.Animator.packets.Destroy.sendToList(destroyPacket, deleteFrom)
+			end
 		end
 
 		self._ReplicateTo = players
 
 		if players and #newReplicateTo > 0 then
-			SendPacket(net.Animator.packets.LoadAnimation.sendToList({
+			local loadPacket = {
 				player = ServerAnimator._player.UserId,
 				gUID = self._GUID,
 				animationId = self.AnimationId,
@@ -131,23 +180,29 @@ function FakeTrack.new(AnimationId: string, TrackArguments: TrackArguments?, Rep
 				speed = self.Speed ~= 1 and self.Speed or nil,
 				weight = self.Weight ~= 1 and self.Weight or nil,
 				looped = self._LoopPreference
-			}, newReplicateTo))
+			}
+
+			NETWORK_DEBUG("LoadAnimation", newReplicateTo, loadPacket)
+			net.Animator.packets.LoadAnimation.sendToList(loadPacket, newReplicateTo)
 		end
 	end
 
-	--[[Destroys the fake animation track, _replicateToAllExcept is only used internally, don't use it in normal code.]]
-	function self.Destroy(self: FakeTrack, _replicateToAllExcept: Player?)
+	--[[Destroys the fake animation track, _ReplicateToAllExcept is only used internally, don't use it in normal code.]]
+	function self.Destroy(self: FakeTrack, _ReplicateToAllExcept: Player?)
 		self:Stop()
 		ServerAnimator.AnimationTracks[self._GUID] = nil
 		if self._ClientReplicated then
 			local packetData = { player = ServerAnimator._player.UserId, gUID = self._GUID }
-			if _replicateToAllExcept then
-				net.Animator.packets.Destroy.sendToList(packetData, allExcept(_replicateToAllExcept, self._ReplicatedOn))
-			elseif self._ReplicateTo ~= nil then
-				net.Animator.packets.Destroy.sendToList(packetData, self._ReplicateTo)
-			else
-				net.Animator.packets.Destroy.sendToAll(packetData)
+			
+			local targets = self._ReplicateTo
+			
+			if targets == nil or #targets == 0 then targets = Players:GetPlayers() end
+			if _ReplicateToAllExcept then
+				targets = allExcept(_ReplicateToAllExcept, targets)
 			end
+
+			NETWORK_DEBUG("Destroy", targets, packetData)
+			net.Animator.packets.Destroy.sendToList(packetData, targets)
 		end
 		setmetatable(self, nil)
 		table.clear(self)

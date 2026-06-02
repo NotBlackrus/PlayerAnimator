@@ -73,4 +73,22 @@ export type TrackGhost = {
 	Priority: Enum.AnimationPriority;
 }
 
+export type AnimatorModule = {
+	Initialized: boolean,
+	cache: {[Humanoid]: LocalAnimator | ServerAnimator},
+
+	init: (args: Config?) -> AnimatorModule,
+	new: (Humanoid: Humanoid) -> ServerAnimator|LocalAnimator,
+	newClient: (Humanoid: Humanoid) -> LocalAnimator,
+	newServer: (Humanoid: Humanoid) -> ServerAnimator
+}
+
+export type Config = {
+	GARBAGE_TIMER: number?;
+    GARBAGE_DEBUG: boolean?;
+    NETWORK_DEBUG: boolean?;
+    DEFAULT_CUSTOM_PLAYER: boolean?;
+    UGC_EMOTES: boolean?;
+}
+
 return nil
