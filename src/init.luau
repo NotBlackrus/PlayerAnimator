@@ -50,13 +50,16 @@ export type AnimatorModule =    types.AnimatorModule
 
 local AnimatorModule = {
     cache = {}          :: {[Humanoid]: LocalAnimator | ServerAnimator},
-    Initialized = false,
+    Initialized = nil, --false if it's currently initializing, nil if the method was never called.
 }
 
 --[[Main constructor for custom Animators, but not very reliable for type checking.]]
 function AnimatorModule.new(Humanoid: Humanoid): LocalAnimator | ServerAnimator
     assert(Humanoid and Humanoid:IsA("Humanoid"), "Expected Humanoid, got "..typeof(Humanoid))
-    assert(AnimatorModule.Initialized, "AnimatorModule not initialized! Call AnimatorModule.init() before creating any animators.")
+    if not AnimatorModule.Initialized then
+        warn("[PlayerAnimator]["..IsClient and "Client" or "Server".."] AnimatorModule not initialized! Constructor method will yield until AnimatorModule.Initialized returns true!")
+        repeat task.wait() until AnimatorModule.Initialized == true
+    end
 	if AnimatorModule.cache[Humanoid] then
 		return AnimatorModule.cache[Humanoid]
 	end
@@ -77,24 +80,24 @@ end
 
 --[[Calls AnimatorModule.new, but asserts the RunService enviroment for the LSP to type check the specific Animator handler]]
 function AnimatorModule.newClient(Humanoid: Humanoid): LocalAnimator
-	assert(IsClient, "Can't call newClient() on Server!")
+	assert(IsClient, "[PlayerAnimator][Server] Can't call newClient() on Server!")
 	return AnimatorModule.new(Humanoid)
 end
 
 --[[Calls AnimatorModule.new, but asserts the RunService enviroment for the LSP to type check the specific Animator handler]]
 function AnimatorModule.newServer(Humanoid: Humanoid): ServerAnimator
-	assert(not IsClient, "Can't call newServer() on Client!")
+	assert(not IsClient, "[PlayerAnimator][Client] Can't call newServer() on Client!")
 	return AnimatorModule.new(Humanoid) :: ServerAnimator
 end
 
 --[[Initializes the module, this only exists as a function for the Config, as Wally packages don't work well with Attribute configurations when they're consistently-reloaded dependencies.]]
 function AnimatorModule.init(Config: Config?): AnimatorModule
-    assert(not AnimatorModule.Initialized, "AnimatorModule has already been initialized.")
-    AnimatorModule.Initialized = true
+    assert(AnimatorModule.Initialized == nil, "AnimatorModule has already been initialized.")
+    AnimatorModule.Initialized = false
 
     if Config then
         if IsClient then
-            warn("Initialization arguments are only used on the server.")
+            warn("[PlayerAnimator][Client] Initialization arguments are only used on the server.")
         else
             for key, value in Config do
                 script:SetAttribute(key, value)
@@ -303,7 +306,7 @@ function AnimatorModule.init(Config: Config?): AnimatorModule
                 local function CacheEmotes(Character: Model)
                     local Humanoid = Character:WaitForChild("Humanoid", 3) :: Humanoid
                     if not Humanoid then
-                        warn("Could not find Humanoid for", Character); return
+                        warn("[PlayerAnimator][Server] Could not find Humanoid for", Character); return
                     end
 
                     local Description = Humanoid:GetAppliedDescription()
@@ -472,6 +475,8 @@ function AnimatorModule.init(Config: Config?): AnimatorModule
             end
         end, "Destroy")
     end
+
+    AnimatorModule.Initialized = true
     return AnimatorModule
 end
 

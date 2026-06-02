@@ -74,7 +74,7 @@ export type TrackGhost = {
 }
 
 export type AnimatorModule = {
-	Initialized: boolean,
+	Initialized: boolean|nil,
 	cache: {[Humanoid]: LocalAnimator | ServerAnimator},
 
 	init: (args: Config?) -> AnimatorModule,
