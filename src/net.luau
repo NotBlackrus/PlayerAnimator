@@ -16,6 +16,7 @@ return {
 						weight = byte.optional(byte.float32),
 						looped = byte.optional(byte.bool),
 						animationPriority = byte.optional(byte.uint8),
+						length = byte.optional(byte.float32),
 						player = byte.optional(byte.float64),
 					})
 				});
@@ -68,6 +69,14 @@ return {
 						player = byte.float64,
 						fadeTime = byte.optional(byte.float32),
 					})
+				});
+				TrackRequest = byte.definePacket({ --server environments can't invoke queries for some reason!!! >: (
+					value = byte.struct({
+						gUID = byte.string,
+						player = byte.optional(byte.float64),
+						length = byte.optional(byte.float32),
+						looped = byte.optional(byte.bool),
+					})
 				})
 			};
 			queries = {
@@ -78,7 +87,7 @@ return {
 					response = byte.struct({
 						data = byte.array(byte.float64, byte.map(byte.string, byte.string))
 					})
-				})
+				});
 			},
 		}
 	end);

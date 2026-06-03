@@ -25,8 +25,11 @@ local Players = game:GetService("Players")
 
 local module = script.Parent.Parent.Parent --REPLACE WITH MODULE PATH
 local net = require(module:WaitForChild("net"))
+print("you really gotta")
 local PlayerAnimator = require(module)
+print("put your back")
 PlayerAnimator.init()
+print("into it!")
 
 local Config = module:GetAttributes():: PlayerAnimator.Config
 

@@ -21,12 +21,12 @@
 	└──────────────────────────────────────────────────────────────────────────┘
 ]]
 
-local net = require("./net")
-local types = require("./types")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Http = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
+local net = 		require("./net")
+local types = 		require("./types")
+local Signal = 		require("./signalplus")
+local Players = 	game:GetService("Players")
+local RunService = 	game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 type TrackArguments = types.TrackArguments
 type LocalAnimator = types.LocalAnimator
@@ -46,6 +46,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	self._humanoid = Humanoid :: Humanoid
 	self.AnimationTracks = {} :: {[string]:AnimationTrack|string} --indexed by GUID, string is encoded json data for the server-replicated unused animation for recovery purposes- and to save some memory
 	self.LastUse = {} :: {[AnimationTrack]: number} --tracking the last use of an animation track, this will be used to garbage collect unused (but loaded) animations until they're used again
+	self._didLoopTracks = {} :: {[AnimationTrack]: Signal.Signal<>}
 	self.Animator = Instance.new("Animator", self._humanoid) :: Animator
 	self._destroyed = false
 	self.Player = Players:GetPlayerFromCharacter(self._humanoid.Parent)
@@ -58,6 +59,9 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 			if updatedTime >= a.Length then
 				if a.Looped then
 					updatedTime = updatedTime - a.Length
+					if self._didLoopTracks[a] then
+						self._didLoopTracks[a]:Fire()
+					end
 				else
 					self.customPlayer[a] = nil
 					a:Stop()
@@ -69,7 +73,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		end
 		if Config.GARBAGE_TIMER == -1 then return end -- if the timer is set to -1, garbage collection is disabled
 		for guid, track in self.AnimationTracks do
-			if type(track) ~= "string" and track:GetAttribute("Replicated") == false then
+			if type(track) ~= "string" and track:GetAttribute("Replicate") == false then
 				if self.LastUse[track] and os.time() - self.LastUse[track] >= Config.GARBAGE_TIMER then
 					if track.IsPlaying then
 						if Config.GARBAGE_DEBUG then
@@ -81,7 +85,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 							warn("Garbage collecting animation track with GUID: "..guid.." due to inactivity.")
 						end
 						self.LastUse[track] = nil
-						self.AnimationTracks[guid] = Http:JSONEncode({
+						self.AnimationTracks[guid] = HttpService:JSONEncode({
 							AnimationId = track:GetAttribute("AnimationId"),
 							Speed = track.Speed,
 							Weight = track.WeightTarget or track.WeightCurrent,
@@ -106,33 +110,25 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 				warn("Recovering animation track with GUID: "..GUID.." from encoded data: "..track)
 			end
 			local revivalAnim = Instance.new("Animation")
-			local revivalData: TrackGhost = Http:JSONDecode(track)
+			local revivalData: TrackGhost = HttpService:JSONDecode(track)
 			revivalAnim.AnimationId = revivalData.AnimationId
-			local revivalTrack = self:LoadAnimation(revivalAnim)
+			local revivalTrack = self:LoadAnimation(revivalAnim, 
+				false, 
+				{ Speed = revivalData.Speed, 
+					Weight = revivalData.Weight, 
+					Looped = revivalData.Looped, 
+					AnimationPriority = revivalData.Priority }, 
+				GUID)
 			if not revivalTrack then return nil end
-			revivalTrack:SetAttribute("Replicated", false)
-			revivalTrack:SetAttribute("GUID", GUID)
-			revivalTrack:SetAttribute("AnimationId", revivalData.AnimationId)
-			revivalTrack:AdjustSpeed(revivalData.Speed)
-			revivalTrack:AdjustWeight(revivalData.Weight, 0)
-			revivalTrack.Priority = revivalData.Priority
-			self.AnimationTracks[GUID] = revivalTrack
 			track = revivalTrack
 		end
-		track:Play(fadeTime, weight, speed)
-		self.LastUse[track] = os.time()
-		if Config.DEFAULT_CUSTOM_PLAYER == true and customPlayer ~= false or customPlayer == true then
-			track:AdjustSpeed(0)
-			if speed == nil then speed = 1 end
-			self.customPlayer[track] = {speed = speed, timePosition = 0}
-		end
-		return track
+		return self:Play(track, fadeTime, weight, speed, customPlayer) 
 	end
 	
 	--[[Locally play an animation using the animation track, with autonomous replication (if replication enabled)
 	customPlayer adds the track to a PreRender connection's table to progress the animation's TimePosition by framerate, may result in markers being missed, result is reliable for audio synchronizing.]]
 	function self.Play(self: LocalAnimator, AnimationTrack: AnimationTrack, fadeTime: number?, weight: number?, speed: number?, customPlayer: boolean?)
-		if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
+		if AnimationTrack:GetAttribute("Replicate") == true and self.Player == Players.LocalPlayer then
 			net.Animator.packets.Play.send({gUID = AnimationTrack:GetAttribute("GUID"), fadeTime = fadeTime, weight = weight, speed = speed})
 		end
 		
@@ -141,8 +137,11 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		if Config.DEFAULT_CUSTOM_PLAYER == true and customPlayer ~= false or customPlayer == true then
 			AnimationTrack:AdjustSpeed(0)
 			if speed == nil then speed = 1 end
+			self._didLoopTracks[AnimationTrack] = self._didLoopTracks[AnimationTrack] or Signal()
 			self.customPlayer[AnimationTrack] = {speed = speed, timePosition = 0}
+			return AnimationTrack, self._didLoopTracks[AnimationTrack]
 		end
+		return AnimationTrack
 	end
 	
 	--[[Locally stop an animation using only the animation's unique ID
@@ -157,10 +156,14 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	
 	--[[Locally stop an animation using the animation track, with autonomous replication (if replication enabled)]]
 	function self.Stop(self: LocalAnimator, AnimationTrack: AnimationTrack, fadeTime: number?)
-		if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
+		if AnimationTrack:GetAttribute("Replicate") == true and self.Player == Players.LocalPlayer then
 			net.Animator.packets.Stop.send({gUID = AnimationTrack:GetAttribute("GUID"), fadeTime = fadeTime})
 		end
 		self.customPlayer[AnimationTrack] = nil
+		if self._didLoopTracks[AnimationTrack] then
+			self._didLoopTracks[AnimationTrack]:Destroy()
+			self._didLoopTracks[AnimationTrack] = nil
+		end
 		AnimationTrack:Stop(fadeTime)
 		self.LastUse[AnimationTrack] = os.time()
 	end
@@ -223,15 +226,15 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		if TrackArguments.Looped ~= nil then
 			NewTrack.Looped = TrackArguments.Looped
 		end
-		NewTrack:SetAttribute("Replicated",Replicate ~= nil)
-		local GUID = Replicate == false and _serverGUID ~= nil and _serverGUID or Http:GenerateGUID()
+		NewTrack:SetAttribute("Replicate",Replicate)
+		local GUID = Replicate == false and _serverGUID ~= nil and _serverGUID or HttpService:GenerateGUID()
 		NewTrack:SetAttribute("GUID",GUID)
 		self.AnimationTracks[GUID] = NewTrack
 		NewTrack:SetAttribute("AnimationId", Animation.AnimationId)
 		NewTrack:AdjustSpeed(TrackArguments and TrackArguments.Speed or 1)
 		NewTrack:AdjustWeight(TrackArguments and TrackArguments.Weight or 1, 0)
 		
-		if Replicate == true and self.Player == LocalPlayer then
+		if Replicate == true and self.Player == Players.LocalPlayer then
 			net.Animator.packets.LoadAnimation.send({ 
 				animationId = Animation.AnimationId, 
 				AnimationPriority = NewTrack.Priority.Value ~= 1000 and NewTrack.Priority.Value or nil, 
@@ -245,6 +248,10 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 			end)
 		end
 		
+		NewTrack.DidLoop:Connect(function()
+			self.DidLoop:Fire(NewTrack)
+		end)
+
 		return NewTrack
 	end
 	
@@ -255,14 +262,14 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		else
 			AnimationTrack:AdjustSpeed(speed)
 		end
-		if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
+		if AnimationTrack:GetAttribute("Replicate") == true and self.Player == Players.LocalPlayer then
 			net.Animator.packets.AdjustSpeed.send({ gUID = AnimationTrack:GetAttribute("GUID"), speed = speed })
 		end
 	end
 	
 	function self.AdjustWeight(self: LocalAnimator, AnimationTrack: AnimationTrack, weight: number?, fadeTime: number?)
 		AnimationTrack:AdjustWeight(weight, fadeTime)
-		if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
+		if AnimationTrack:GetAttribute("Replicate") == true and self.Player == Players.LocalPlayer then
 			net.Animator.packets.AdjustWeight.send({ gUID = AnimationTrack:GetAttribute("GUID"), weight = weight, fadeTime = fadeTime })
 		end
 	end
@@ -272,16 +279,16 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		if AnimationTrack then
 			if speed == nil then speed = 1 end
 			if type(AnimationTrack) == "string" then
-				local decodedData: TrackGhost = Http:JSONDecode(AnimationTrack)
+				local decodedData: TrackGhost = HttpService:JSONDecode(AnimationTrack)
 				decodedData.Speed = speed
-				self.AnimationTracks[GUID] = Http:JSONEncode(decodedData)
+				self.AnimationTracks[GUID] = HttpService:JSONEncode(decodedData)
 			else
 				if self.customPlayer[AnimationTrack] then
 					self.customPlayer[AnimationTrack].speed = speed
 				else
 					AnimationTrack:AdjustSpeed(speed)
 				end
-				if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
+				if AnimationTrack:GetAttribute("Replicate") == true and self.Player == Players.LocalPlayer then
 					net.Animator.packets.AdjustSpeed.send({ gUID = GUID, speed = speed })
 				end
 			end
@@ -293,12 +300,12 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 		if AnimationTrack then
 			if weight == nil then weight = 1 end
 			if type(AnimationTrack) == "string" then
-				local decodedData: TrackGhost = Http:JSONDecode(AnimationTrack)
+				local decodedData: TrackGhost = HttpService:JSONDecode(AnimationTrack)
 				decodedData.Weight = weight
-				self.AnimationTracks[GUID] = Http:JSONEncode(decodedData)
+				self.AnimationTracks[GUID] = HttpService:JSONEncode(decodedData)
 			else
 				AnimationTrack:AdjustWeight(weight, fadeTime)
-				if AnimationTrack:GetAttribute("Replicated") == true and self.Player == LocalPlayer then
+				if AnimationTrack:GetAttribute("Replicate") == true and self.Player == Players.LocalPlayer then
 					net.Animator.packets.AdjustWeight.send({ gUID = GUID, weight = weight, fadeTime = fadeTime })
 				end
 			end
@@ -315,7 +322,7 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 			self = nil
 		end
 	end
-	
+
 	if self._humanoid.RootPart then
 		self._humanoid.RootPart.Destroying:Once(function()
 			self:Destroy()
@@ -327,6 +334,10 @@ function module.new(Humanoid: Humanoid): LocalAnimator
 	end
 
 	return self
+end
+
+function module:_setConfig(Config: Config)
+	Config = Config
 end
 
 return module

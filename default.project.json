@@ -3,7 +3,7 @@
   "tree": {
     "$className": "Folder",
     "$path": "Packages",
-    "PlayerAnimator": {
+    "playeranimator": {
       "$path": "src"
     }
   }

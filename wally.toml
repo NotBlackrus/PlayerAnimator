@@ -1,7 +1,7 @@
 [package]
 name = "notblackrus/playeranimator"
 description = "Take control of your player's replicated animations!"
-version = "0.1.4"
+version = "0.1.5"
 license = "MIT"
 authors = ["NotBlackrus"]
 registry = "https://github.com/UpliftGames/wally-index"
